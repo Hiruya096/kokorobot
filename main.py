@@ -6,6 +6,7 @@ from src.api_handler import APIHandler
 from src.discord_bot import DiscordBot
 from src.emotions import Emociones
 from src.web_interface import iniciar_web
+from src.keep_alive import keep_alive
 
 # Cargar variables de entorno
 load_dotenv()
@@ -30,4 +31,5 @@ def iniciar_kokoro():
     web_thread.start()
 
 if __name__ == "__main__":
-    iniciar_kokoro()
+    keep_alive()  # Inicia el servidor de keep-alive
+    iniciar_kokoro()  # Inicia el bot

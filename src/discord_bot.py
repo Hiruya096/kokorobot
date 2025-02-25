@@ -30,8 +30,9 @@ class DiscordBot:
             # Registrar la interacción
             self.emociones.registrar_interaccion('mensaje', sentimiento['confianza'])
             
-            # Enviar respuesta
-            await message.channel.send(respuesta_emocional)
+            # Enviar respuestas
+            await message.channel.send(respuesta)  # Enviar respuesta del API
+            await message.channel.send(respuesta_emocional)  # Enviar respuesta emocional
             
             await self.bot.process_commands(message)
     
