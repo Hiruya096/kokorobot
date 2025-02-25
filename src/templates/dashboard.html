@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kokoro Hikari - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .emotion-icon { font-size: 2rem; margin-bottom: 10px; }
+        .energy-bar { height: 25px; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="text-center mb-5">Kokoro Hikari Dashboard</h1>
+        
+        <!-- Estado Emocional -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Estado Emocional</h5>
+                        <div class="emotion-icon">
+                            {% if status.current_emotion == 'feliz' %}😊
+                            {% elif status.current_emotion == 'triste' %}😢
+                            {% elif status.current_emotion == 'neutral' %}😐
+                            {% elif status.current_emotion == 'emocionado' %}🤩
+                            {% elif status.current_emotion == 'preocupado' %}😟
+                            {% else %}😐
+                            {% endif %}
+                        </div>
+                        <p class="card-text">{{ status.current_emotion|title }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Nivel de Energía -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Nivel de Energía</h5>
+                        <div class="progress energy-bar">
+                            <div id="energy-progress" class="progress-bar 
+                                {% if status.energy_level > 70 %}bg-success
+                                {% elif status.energy_level > 30 %}bg-warning
+                                {% else %}bg-danger{% endif %}" 
+                                role="progressbar" 
+                                aria-valuemin="0"
+                                aria-valuemax="100">
+                                {{ status.energy_level|default(0) }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Estadísticas</h5>
+                        <p class="card-text">Mensajes Procesados: <span id="messages-count">{{ status.messages_processed|default(0) }}</span></p>
+                        <p class="card-text">Tiempo Activo: <span id="uptime">{{ status.start_time|default("Desconocido") }}</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function updateDashboard(data) {
+            // Actualizar emoción
+            const emotionMap = {
+                'feliz': '😊',
+                'triste': '😢',
+                'neutral': '😐',
+                'emocionado': '🤩',
+                'preocupado': '😟'
+            };
+            document.querySelector('.emotion-icon').textContent = emotionMap[data.emotion] || '😐';
+            document.querySelector('.card-text').textContent = data.emotion.charAt(0).toUpperCase() + data.emotion.slice(1);
+
+            // Actualizar barra de energía
+            const progressBar = document.getElementById('energy-progress');
+            progressBar.style.width = `${data.energy}%`;
+            progressBar.textContent = `${data.energy}%`;
+            progressBar.className = `progress-bar ${data.energy > 70 ? 'bg-success' : data.energy > 30 ? 'bg-warning' : 'bg-danger'}`;
+
+            // Actualizar estadísticas
+            document.getElementById('messages-count').textContent = data.messages;
+            document.getElementById('uptime').textContent = data.uptime;
+        }
+
+        function refreshDashboard() {
+            fetch('/api/status')
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => updateDashboard(data))
+                .catch(error => console.error('Error updating dashboard:', error));
+        }
+
+        // Refrescar el dashboard inicialmente y cada 5 segundos
+        refreshDashboard();
+        setInterval(refreshDashboard, 5000);
+    </script>
+</body>
+</html>
