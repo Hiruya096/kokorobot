@@ -2,9 +2,13 @@
 import requests
 from gtts import gTTS
 import os
+import discord
+import json
+import asyncio
+from typing import Optional, Dict, Any
 
 class APIHandler:
-    def __init__(self, api_key):
+    def __init__(self, api_key: str, discord_token: Optional[str] = None, discord_channel_id: Optional[int] = None):
         self.api_key = api_key
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.headers = {
@@ -12,10 +16,40 @@ class APIHandler:
             "HTTP-Referer": "https://github.com/",
             "Content-Type": "application/json"
         }
+        self.discord_token = discord_token
+        self.discord_channel_id = discord_channel_id
+        self.discord_client = None
+        if discord_token and discord_channel_id:
+            self.setup_discord()
         print("API Handler inicializado")
     
-    def procesar_mensaje(self, mensaje):
-        """Procesa un mensaje usando la API de OpenRouter"""
+    def setup_discord(self):
+        """Configura el cliente de Discord"""
+        intents = discord.Intents.default()
+        intents.message_content = True
+        self.discord_client = discord.Client(intents=intents)
+
+    async def get_discord_response(self, mensaje: str) -> str:
+        """Obtiene una respuesta desde Discord como fallback"""
+        if not self.discord_client or not self.discord_channel_id:
+            return "Sistema de respaldo no disponible."
+        
+        try:
+            channel = self.discord_client.get_channel(self.discord_channel_id)
+            if not channel:
+                return "Canal de Discord no encontrado."
+
+            # Buscar respuestas almacenadas
+            async for message in channel.history(limit=100):
+                if message.content.startswith(mensaje[:50]):
+                    return message.content.split('||')[1] if '||' in message.content else message.content
+            return "No se encontró una respuesta adecuada en el respaldo."
+        except Exception as e:
+            print(f"Error al obtener respuesta de Discord: {e}")
+            return "Error al acceder al sistema de respaldo."
+
+    def procesar_mensaje(self, mensaje: str) -> str:
+        """Procesa un mensaje usando la API de OpenRouter con fallback a Discord"""
         try:
             payload = {
                 "model": "mistralai/mistral-small-24b-instruct-2501",
@@ -25,9 +59,18 @@ class APIHandler:
             response = requests.post(self.api_url, headers=self.headers, json=payload)
             response.raise_for_status()
             data = response.json()
-            return data['choices'][0]['message']['content'].strip()
+            respuesta = data['choices'][0]['message']['content'].strip()
+            
+            # Almacenar la respuesta en Discord si está disponible
+            if self.discord_client and self.discord_channel_id:
+                asyncio.create_task(self.store_response(mensaje, respuesta))
+            
+            return respuesta
         except Exception as e:
-            print(f"Error al procesar mensaje: {e}")
+            print(f"Error al procesar mensaje con OpenRouter: {e}")
+            # Intentar obtener respuesta de Discord
+            if self.discord_client:
+                return asyncio.run(self.get_discord_response(mensaje))
             return "Lo siento, hubo un error al procesar tu mensaje."
     
     def obtener_respuesta(self, contexto):
@@ -59,7 +102,7 @@ class APIHandler:
             print(f"Error al analizar sentimiento: {e}")
             return {"sentimiento": "neutral", "confianza": 0.5}
     
-    def texto_a_voz(self, texto, archivo_salida="respuesta.mp3"):
+    def texto_a_voz(self, texto: str, archivo_salida: str = "respuesta.mp3") -> bool:
         """Convierte texto a voz usando gTTS"""
         try:
             tts = gTTS(text=texto, lang='es')
@@ -68,3 +111,15 @@ class APIHandler:
         except Exception as e:
             print(f"Error al convertir texto a voz: {e}")
             return False
+            
+    async def store_response(self, pregunta: str, respuesta: str) -> None:
+        """Almacena la pregunta y respuesta en Discord para futuros usos"""
+        if not self.discord_client or not self.discord_channel_id:
+            return
+            
+        try:
+            channel = self.discord_client.get_channel(self.discord_channel_id)
+            if channel:
+                await channel.send(f"{pregunta}||{respuesta}")
+        except Exception as e:
+            print(f"Error al almacenar respuesta en Discord: {e}")
